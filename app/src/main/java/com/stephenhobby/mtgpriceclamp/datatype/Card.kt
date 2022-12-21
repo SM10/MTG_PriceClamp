@@ -56,7 +56,7 @@ class Card(val id: String,
     var textless : Boolean? = null
     var booster: Boolean? = null
     var story_spotlight : Boolean? = null
-    var prices : HashMap<String, String>? = null
+    var prices : HashMap<String, Double?>? = null
     var related_uris : HashMap<String, Uri?>? = null
     var purchase_uris : HashMap<String, Uri?>? = null
 }
