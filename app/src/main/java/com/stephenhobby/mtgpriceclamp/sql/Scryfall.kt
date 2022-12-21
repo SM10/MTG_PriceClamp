@@ -1,6 +1,7 @@
 package com.stephenhobby.mtgpriceclamp.sql
 
 import android.net.Uri
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -10,21 +11,26 @@ import java.io.ByteArrayOutputStream
 import java.net.URL
 import com.stephenhobby.mtgpriceclamp.datatype.Card
 
-public class ScryfallApi(callback : Callback){
-
+public class ScryfallApi(val callback : Callback){
+    private val TAG = "ScryfallApi"
     interface Callback{
-        abstract fun onQueryResult(result: String);
+        abstract fun onQueryResult(cardlist : ArrayList<Card>);
         abstract fun onQueryError(error: Error)
     }
 
-    fun Query(query : String) : ArrayList<Card> {
-        val requestresult : JSONObject = Connect(query, "https://api.scryfall.com/cards/search?q=" + query);
-        val cardArray : JSONArray = requestresult.getJSONArray("data")
-        val cardList = ArrayList<Card>();
-        for(counter in 0 .. cardArray.length()){
-            cardList.add(ToCard(cardArray.getJSONObject(counter)))
+    fun UserQuery(query : String) {
+        try {
+            val requestresult: JSONObject =
+                Connect(query, "https://api.scryfall.com/cards/search?q=" + query);
+            val cardArray: JSONArray = requestresult.getJSONArray("data")
+            val cardList = ArrayList<Card>();
+            for (counter in 0..cardArray.length() - 1) {
+                cardList.add(ToCard(cardArray.getJSONObject(counter)))
+            }
+            callback.onQueryResult(cardList)
+        }catch(e : Error){
+            callback.onQueryError(e)
         }
-        return cardList
     }
 
     fun ToCard(jsonCard: JSONObject) : Card{
@@ -41,7 +47,7 @@ public class ScryfallApi(callback : Callback){
     }
 
     private fun Connect(query : String, path : String) : JSONObject{
-        val out : ByteArrayOutputStream = ByteArrayOutputStream();
+        val out = ByteArrayOutputStream();
         try {
             runBlocking {
                 val job = launch(Dispatchers.IO) {
@@ -51,8 +57,10 @@ public class ScryfallApi(callback : Callback){
                     val inputstream = connection.getInputStream()
                     var buffer = ByteArray(1024)
 
-                    while (inputstream.read(buffer, 0, buffer.size) > 0) {
-                        out.write(buffer)
+                    var readBytes = inputstream.read(buffer, 0, buffer.size)
+                    while (readBytes > 0) {
+                        out.write(buffer, 0, readBytes)
+                        readBytes = inputstream.read(buffer, 0, buffer.size)
                     }
                 }
                 job.join()
@@ -61,7 +69,9 @@ public class ScryfallApi(callback : Callback){
             throw e;
         }
 
-        return JSONObject(out.toString());
+        val jsonString = out.toString("UTF-8")
+        println(jsonString)
+        return JSONObject(jsonString);
     }
 
     private fun toCharArray(jsonArray : JSONArray) : Array<Char>{
@@ -157,11 +167,11 @@ public class ScryfallApi(callback : Callback){
     }
 
     //prepares prices to be loaded into Card
-    private fun getPrices(jsonCard: JSONObject) : HashMap<String, String> {
-        val prices = HashMap<String, String>();
-        prices.put("usd", jsonCard.getJSONObject("prices").getString("usd"));
-        prices.put("usd_foil", jsonCard.getJSONObject("prices").getString("usd_foil"));
-        prices.put("usd_etched", jsonCard.getJSONObject("prices").getString("usd_etched"));
+    private fun getPrices(jsonCard: JSONObject) : HashMap<String, Double?> {
+        val prices = HashMap<String, Double?>();
+        prices.put("usd", jsonCard.getJSONObject("prices").optDouble("usd"));
+        prices.put("usd_foil", jsonCard.getJSONObject("prices").optDouble("usd_foil"));
+        prices.put("usd_etched", jsonCard.getJSONObject("prices").optDouble("usd_etched"));
         return prices
     }
 
